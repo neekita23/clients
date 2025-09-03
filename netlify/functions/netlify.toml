@@ -1,0 +1,7 @@
+{
+  "name": "client-form-notion",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "build": "echo \"No build step\"" },
+  "dependencies": { "@notionhq/client": "^2.2.15" }
+}
