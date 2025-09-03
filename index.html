@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Заполнение данных — Клиент</title>
+  <style>
+    :root{--bg:#fff;--text:#0f172a;--muted:#475569;--line:#e2e8f0;--field:#fff;--field-line:#cbd5e1;--accent:#2563eb;--danger:#dc2626}
+    *{box-sizing:border-box} html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:720px;margin:0 auto;padding:24px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 6px 16px rgba(2,6,23,.06)}
+    h1{font-size:20px;margin:0 0 12px} p.note{margin:0 0 18px;color:var(--muted)}
+    .row{margin-bottom:14px} label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+    input[type="text"],textarea{width:100%;padding:12px 14px;background:var(--field);color:var(--text);border:1px solid var(--field-line);border-radius:12px;outline:0}
+    input[readonly]{background:#f8fafc} textarea{min-height:110px;resize:vertical}
+    .inline{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .err{margin-top:6px;font-size:13px;color:var(--danger);display:none}
+    .agree{display:flex;gap:10px;align-items:flex-start;color:#334155;font-size:14px}
+    button{width:100%;padding:12px 16px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+    button:disabled{opacity:.7;cursor:not-allowed}
+    .success{margin-top:12px;border:1px solid #86efac;background:#ecfdf5;color:#166534;border-radius:12px;padding:10px}
+    .error{margin-top:12px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:12px;padding:10px}
+    .tools{display:flex;gap:8px;align-items:center;margin-top:10px}
+    .linkbox{flex:1;padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid var(--line);color:#0369a1;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .copy{padding:10px 12px;border-radius:10px;background:#f1f5f9;color:#0f172a;border:1px solid var(--line);cursor:pointer}
+    .footer{margin-top:10px;text-align:center;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="formCard">
+      <h1>Заполнение данных</h1>
+      <p class="note">Укажите адрес и ИНН. Данные попадут в нашу систему и будут использованы только для оформления документов.</p>
+
+      <div class="row inline">
+        <div>
+          <label for="clientId">ID клиента</label>
+          <input id="clientId" name="clientId" type="text" readonly />
+        </div>
+        <div>
+          <label for="clientName">Имя</label>
+          <input id="clientName" name="clientName" type="text" readonly />
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="address">Адрес <span aria-hidden="true">*</span></label>
+        <textarea id="address" name="address" placeholder="Страна, город, улица, дом, индекс" required></textarea>
+        <div class="err" id="addressErr">Укажите адрес.</div>
+      </div>
+
+      <div class="row">
+        <label for="inn">ИНН <span aria-hidden="true">*</span></label>
+        <input id="inn" name="inn" type="text" inputmode="numeric" autocomplete="off" placeholder="10 или 12 цифр" required />
+        <div class="err" id="innErr">Проверьте ИНН (10 или 12 цифр, проходит контрольную проверку).</div>
+      </div>
+
+      <div class="row agree">
+        <input type="checkbox" id="agree" />
+        <label for="agree">Подтверждаю корректность данных и согласен(на) на их обработку.</label>
+      </div>
+
+      <button id="submitBtn">Отправить</button>
+      <div id="status"></div>
+      <div class="footer">Если ссылка открыта по ошибке — просто закройте страницу.</div>
+
+      <div class="tools">
+        <div class="linkbox" id="shareLink"></div>
+        <button class="copy" id="copyBtn">Скопировать ссылку</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const $ = (id) => document.getElementById(id);
+
+    const id = qs.get("id") || "CL-1";
+    const name = qs.get("name") || "Rodionov";
+    $("clientId").value = id;
+    $("clientName").value = name;
+
+    function checkINN(inn) {
+      inn = (inn || "").replace(/\D/g, "");
+      if (!(inn.length === 10 || inn.length === 12)) return false;
+      const sum = (arr, k) => (k.reduce((s,c,i)=>s + c * Number(arr[i]),0) % 11) % 10;
+      if (inn.length === 10) {
+        const k10 = [2,4,10,3,5,9,4,6,8];
+        return sum(inn, k10) === Number(inn[9]);
+      } else {
+        const k11 = [7,2,4,10,3,5,9,4,6,8];
+        const k12 = [3,7,2,4,10,3,5,9,4,6,8];
+        return sum(inn, k11) === Number(inn[10]) && sum(inn, k12) === Number(inn[11]);
+      }
+    }
+
+    function showErr(el, show){ el.style.display = show ? "block" : "none"; }
+
+    const share = (() => {
+      try {
+        const isSrcdoc = location.protocol === "about:" || location.origin === "null" || location.href.startsWith("about:");
+        const base = isSrcdoc ? "https://your-site.netlify.app/" : (location.origin + (location.pathname || "/"));
+        const u = new URL(base);
+        u.searchParams.set("id", id);
+        u.searchParams.set("name", name);
+        return u.toString();
+      } catch {
+        return "https://your-site.netlify.app/?id=" + encodeURIComponent(id) + "&name=" + encodeURIComponent(name);
+      }
+    })();
+    $("shareLink").textContent = share;
+    $("copyBtn").onclick = async () => {
+      try { await navigator.clipboard.writeText(share); } catch {
+        const ta = document.createElement("textarea");
+        ta.value = share; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch{}
+        document.body.removeChild(ta);
+      }
+    };
+
+    $("submitBtn").addEventListener("click", async () => {
+      const address = $("address").value.trim();
+      const inn = $("inn").value.trim().replace(/\s+/g, "");
+
+      let valid = true;
+      showErr($("addressErr"), !address);
+      if(!address) valid = false;
+
+      const okINN = checkINN(inn);
+      showErr($("innErr"), !okINN);
+      if(!okINN) valid = false;
+
+      if (!$("agree").checked){ alert("Поставьте галочку согласия."); valid = false; }
+      if (!valid) return;
+
+      const btn = $("submitBtn");
+      btn.disabled = true; btn.textContent = "Отправляем…";
+      $("status").innerHTML = "";
+
+      try {
+        const res = await fetch("/.netlify/functions/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, name, address, inn })
+        });
+        if(!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (data && data.ok){
+          $("status").innerHTML = '<div class="success">Спасибо! Данные отправлены.</div>';
+        } else {
+          throw new Error(data && data.error ? data.error : "Ошибка сервера");
+        }
+      } catch (e) {
+        $("status").innerHTML = '<div class="error">Не удалось отправить. ' + (e.message || "") + '</div>';
+      } finally {
+        btn.disabled = false; btn.textContent = "Отправить";
+      }
+    });
+  </script>
+</body>
+</html>
